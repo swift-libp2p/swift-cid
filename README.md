@@ -1,4 +1,4 @@
-# CID (Content IDentifier) Specification
+# CID (Content IDentifier)
 
 [![](https://img.shields.io/badge/made%20by-Breth-blue.svg?style=flat-square)](https://breth.app)
 [![](https://img.shields.io/badge/project-multiformats-blue.svg?style=flat-square)](https://github.com/multiformats/multiformats)
