@@ -1,8 +1,9 @@
-# CID (Content IDentifier) Specification
+# CID (Content IDentifier)
 
 [![](https://img.shields.io/badge/made%20by-Breth-blue.svg?style=flat-square)](https://breth.app)
 [![](https://img.shields.io/badge/project-multiformats-blue.svg?style=flat-square)](https://github.com/multiformats/multiformats)
 [![Swift Package Manager compatible](https://img.shields.io/badge/SPM-compatible-blue.svg?style=flat-square)](https://github.com/apple/swift-package-manager)
+![Build & Test (macos and linux)](https://github.com/swift-libp2p/swift-cid/actions/workflows/build+test.yml/badge.svg)
 
 > Self-describing content-addressed identifiers for distributed systems
 
