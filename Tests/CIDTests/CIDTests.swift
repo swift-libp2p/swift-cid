@@ -255,9 +255,9 @@ final class CIDTests: XCTestCase {
         XCTAssertEqual(cid1.multihash, cid2.multihash)
         XCTAssertEqual(cid1.multibase, cid2.multibase)
         
-        /// P2P and IPFS Interop (Name is different, code is the same (should result in the same hash))
+        /// P2P =/= IPFS Interop (Name is different, code is different)
         XCTAssertNotEqual(cid1.codec, cid3.codec) // .ipfs  != .p2p
-        XCTAssertEqual(cid1.code, cid3.code)      // 0x01a5 == 0x01a5
+        XCTAssertNotEqual(cid1.code, cid3.code)      // 0x01a5 == 0x01a5
         XCTAssertEqual(cid1.version, cid3.version)
         XCTAssertEqual(cid1.multihash, cid3.multihash)
         XCTAssertEqual(cid1.multibase, cid3.multibase)
