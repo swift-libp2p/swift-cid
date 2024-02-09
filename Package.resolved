@@ -33,8 +33,8 @@
         "repositoryURL": "https://github.com/swift-libp2p/swift-multicodec.git",
         "state": {
           "branch": null,
-          "revision": "741764bba03bd0b8a7399c73aa8a177dd07807be",
-          "version": "0.0.5"
+          "revision": "3ea551d87a15e390d48c379fda350e7495000929",
+          "version": "0.0.7"
         }
       },
       {
