@@ -1,0 +1,61 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "CryptoSwift",
+        "repositoryURL": "https://github.com/krzyzanowskim/CryptoSwift.git",
+        "state": {
+          "branch": null,
+          "revision": "19b3c3ceed117c5cc883517c4e658548315ba70b",
+          "version": "1.6.0"
+        }
+      },
+      {
+        "package": "swift-bases",
+        "repositoryURL": "https://github.com/swift-libp2p/swift-bases.git",
+        "state": {
+          "branch": null,
+          "revision": "c84494da575bc776ae64c180af2731471193b812",
+          "version": "0.0.2"
+        }
+      },
+      {
+        "package": "swift-multibase",
+        "repositoryURL": "https://github.com/swift-libp2p/swift-multibase.git",
+        "state": {
+          "branch": null,
+          "revision": "17044546b401c1c3af2f947f64484b1e5f88a5a3",
+          "version": "0.0.1"
+        }
+      },
+      {
+        "package": "swift-multicodec",
+        "repositoryURL": "https://github.com/swift-libp2p/swift-multicodec.git",
+        "state": {
+          "branch": null,
+          "revision": "741764bba03bd0b8a7399c73aa8a177dd07807be",
+          "version": "0.0.5"
+        }
+      },
+      {
+        "package": "swift-multihash",
+        "repositoryURL": "https://github.com/swift-libp2p/swift-multihash.git",
+        "state": {
+          "branch": null,
+          "revision": "409e86f2e159e7abb7773bfb0bd830a63f36de14",
+          "version": "0.0.3"
+        }
+      },
+      {
+        "package": "swift-varint",
+        "repositoryURL": "https://github.com/swift-libp2p/swift-varint.git",
+        "state": {
+          "branch": null,
+          "revision": "3d1e3c9ca4824d5acaf40ff46e96c0b956599271",
+          "version": "0.0.1"
+        }
+      }
+    ]
+  },
+  "version": 1
+}
