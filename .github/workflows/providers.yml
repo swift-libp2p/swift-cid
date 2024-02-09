@@ -1,0 +1,39 @@
+name: Test Dependency Graph
+
+on:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  test-dependants:
+    if: contains(github.event.pull_request.labels.*.name, 'approved')
+    strategy:
+      fail-fast: false
+      matrix:
+        provider:
+          - swift-libp2p/swift-peer-id
+          - swift-libp2p/swift-multiaddr
+        os: [ubuntu-latest, macos-latest]
+        swift-version: ['5.9']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Setup swift
+        uses: swift-actions/setup-swift@v1
+        with:
+          swift-version: '${{ matrix.swift-version }}'
+      - name: Check out ${{ github.event.repository.name }}
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.event.repository.name }}
+      - name: Check out provider
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.provider }}
+          path: provider
+          ref: ${{ matrix.ref }}
+      - name: Use local ${{ github.event.repository.name }}
+        run: swift package --package-path ./provider edit ${{ github.event.repository.name }} --path ./${{ github.event.repository.name }}
+      - name: Run tests
+        env:
+            SWIFT_DETERMINISTIC_HASHING: 1
+        run: swift test --package-path ./provider
