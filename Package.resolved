@@ -24,8 +24,8 @@
         "repositoryURL": "https://github.com/swift-libp2p/swift-multibase.git",
         "state": {
           "branch": null,
-          "revision": "17044546b401c1c3af2f947f64484b1e5f88a5a3",
-          "version": "0.0.1"
+          "revision": "45f3cf2844477b9d211e1d3e793d0853134fd942",
+          "version": "0.0.2"
         }
       },
       {
