@@ -42,8 +42,8 @@
         "repositoryURL": "https://github.com/swift-libp2p/swift-multihash.git",
         "state": {
           "branch": null,
-          "revision": "409e86f2e159e7abb7773bfb0bd830a63f36de14",
-          "version": "0.0.3"
+          "revision": "7ea5a9866bd341601fa61647d521880944139353",
+          "version": "0.0.4"
         }
       },
       {
