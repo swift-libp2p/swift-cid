@@ -526,28 +526,55 @@ final class CIDTests: XCTestCase {
         }
     }
     
-    /// CIDs are structs so they copy by default, they'll never point to the same memory...
+    /// CIDs are structs so they should adopt Copy on Write behavior
     func testIdempotence() throws {
         let h1 = "QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n"
         let cid1 = try CID(h1)
-        let cid2 = CID(cid1)
+        var cid2 = CID(cid1)
         
         XCTAssertTrue(cid1 == cid2)
+        // Shares the same pointer until we modify the struct
         let cid1Pointer = withUnsafePointer(to: cid1) { "\($0)" }
         let cid2Pointer = withUnsafePointer(to: cid2) { "\($0)" }
+        #if DEBUG
+        // Copy on Write is disabled in DEBUG mode
         XCTAssertNotEqual(cid1Pointer, cid2Pointer)
+        #endif
+        
+        #if Release
+        // They share the same pointer until we modify one
+        XCTAssertEqual(cid1Pointer, cid2Pointer)
+        
+        // Copy on Write
+        cid2.toV1()
+        let cid2PointerCoW = withUnsafePointer(to: cid2) { "\($0)" }
+        XCTAssertNotEqual(cid1Pointer, cid2PointerCoW)
+        #endif
     }
     
-    /// CIDs are structs so they copy by default, they'll never point to the same memory...
+    /// CIDs are structs so they should adopt Copy on Write behavior
     func testIdempotence2() throws {
         let h1 = "QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n"
         let cid1 = try CID(h1)
-        let cid2 = cid1
+        var cid2 = cid1
         
         XCTAssertTrue(cid1 == cid2)
         let cid1Pointer = withUnsafePointer(to: cid1) { "\($0)" }
         let cid2Pointer = withUnsafePointer(to: cid2) { "\($0)" }
+        #if DEBUG
+        // Copy on Write is disabled in DEBUG mode
         XCTAssertNotEqual(cid1Pointer, cid2Pointer)
+        #endif
+
+        #if Release
+        // They share the same pointer until we modify one
+        XCTAssertEqual(cid1Pointer, cid2Pointer)
+
+        // Copy on Write
+        cid2.toV1()
+        let cid2PointerCoW = withUnsafePointer(to: cid2) { "\($0)" }
+        XCTAssertNotEqual(cid1Pointer, cid2PointerCoW)
+        #endif
     }
     
     
