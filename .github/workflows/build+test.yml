@@ -1,31 +1,11 @@
 name: Build & Test
 
 on:
-  push:
-    paths-ignore:
-      - 'README.md'
-    branches: [ main ]
-  pull_request:
-    paths-ignore:
-      - 'README.md'
-    branches: [ main ]
+  schedule:
+    - cron: "49 4 * * 1"
+  workflow_dispatch:
 
 jobs:
-  test-matrix:
-    if: ${{ !(github.event.pull_request.draft || false) }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        swift-version: ["5.9", "5.8", "5.7"]
-    runs-on: ${{ matrix.os }}
-    steps:
-    - uses: actions/checkout@v4
-    - uses: swift-actions/setup-swift@v1
-      with:
-        swift-version: ${{ matrix.swift-version }}
-    - name: Get swift version
-      run: swift --version
-    - name: Build
-      run: swift build -v
-    - name: Test
-      run: swift test -v
+  tests:
+    name: Tests
+    uses: swift-libp2p/github-workflows/.github/workflows/build+test.yml@main
