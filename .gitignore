@@ -5,6 +5,7 @@
 .index-build/
 .devcontainer/
 /Packages
+Package.resolved
 /*.xcodeproj
 xcuserdata/
 /public
