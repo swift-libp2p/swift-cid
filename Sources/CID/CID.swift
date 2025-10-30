@@ -23,7 +23,7 @@ public enum CIDVersion: Int {
     case v1 = 1
 }
 
-public enum CIDError: Error {
+public enum CIDError: Error, Equatable {
     case cidStringTooShort
     case invalidCIDString
     case invalidVersion
@@ -32,6 +32,23 @@ public enum CIDError: Error {
     case invalidV0Multibase
     case invalidMultihash(Error)
     case invalidBaseEncoding(Error)
+
+    public static func == (lhs: CIDError, rhs: CIDError) -> Bool {
+        switch (lhs, rhs) {
+        case (.cidStringTooShort, .cidStringTooShort): return true
+        case (.invalidCIDString, .invalidCIDString): return true
+        case (.invalidVersion, .invalidVersion): return true
+        case (.invalidV0Codec, .invalidV0Codec): return true
+        case (.invalidV0Multihash, .invalidV0Multihash): return true
+        case (.invalidV0Multibase, .invalidV0Multibase): return true
+        case (.invalidMultihash(let l), .invalidMultihash(let r)):
+            return l.localizedDescription == r.localizedDescription
+        case (.invalidBaseEncoding(let l), .invalidBaseEncoding(let r)):
+            return l.localizedDescription == r.localizedDescription
+        default:
+            return false
+        }
+    }
 }
 
 extension CIDError {
