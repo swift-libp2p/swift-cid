@@ -18,7 +18,7 @@ import Multicodec
 import Multihash
 import VarInt
 
-public enum CIDVersion: Int {
+public enum CIDVersion: Int, Sendable {
     case v0 = 0
     case v1 = 1
 }
@@ -74,7 +74,7 @@ extension CIDError {
     }
 }
 
-public struct CID: Equatable {
+public struct CID: Equatable, Sendable {
     /// CID Value [version, codec, hash-algo, hash-length, hash-digest]
     private let value: [UInt8]
 
