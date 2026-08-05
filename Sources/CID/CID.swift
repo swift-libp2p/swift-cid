@@ -147,6 +147,14 @@ public struct CID: Equatable, Sendable {
         if let d = try? BaseEncoding.decode(cid) {
             // After base decoding, CID data consists of...
             // <Version 1 byte> <Codec> <Multihash>
+            //
+            // Spec guard: a multibase-encoded CID may not decode to a leading `0x12` byte. CIDv0
+            // multihashes (sha2-256, `0x12`) are never multibase-encoded, and there is no CIDv18
+            // (`0x12` = 18), so an explicit multibase prefix followed by `0x12` is ambiguous.
+            // Bare base58btc "Qm..." v0 CIDs carry no explicit prefix and remain valid.
+            if !cid.hasPrefix("Qm"), d.data.first == 0x12 {
+                throw CIDError.invalidCIDString
+            }
             try self.init(d.data, base: d.base)
         } else {
             //Base Decoding Failed... Assuming CID String is a V0 base58btc string...
