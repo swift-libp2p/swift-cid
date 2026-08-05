@@ -798,4 +798,131 @@ struct CIDTests {
             try CID(bytes)
         }
     }
+
+    /// - MARK: Hashable
+
+    /// Equal CIDs (including those differing only by presentation multibase) hash equally and de-dupe.
+    @Test func testHashable_EqualCIDsShareHashAndDeDupe() throws {
+        let cidBase32 = try CID("bafybeidskjjd4zmr7oh6ku6wp72vvbxyibcli2r6if3ocdcy7jjjusvl2u")
+        // Same CID re-created from its raw bytes (multibase defaults may differ, equality must not)
+        let cidFromBytes = try CID(cidBase32.rawData)
+
+        #expect(cidBase32 == cidFromBytes)
+        #expect(cidBase32.hashValue == cidFromBytes.hashValue)
+
+        let set: Set<CID> = [cidBase32, cidFromBytes]
+        #expect(set.count == 1)
+
+        // A genuinely different CID is a distinct set member
+        let other = try CID("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
+        #expect(Set([cidBase32, other]).count == 2)
+    }
+
+    /// - MARK: Codable
+
+    @Test func testCodable_RoundTripV1() throws {
+        let cid = try CID("bafybeidskjjd4zmr7oh6ku6wp72vvbxyibcli2r6if3ocdcy7jjjusvl2u")
+
+        let data = try JSONEncoder().encode(cid)
+        // Encoded as the single canonical string value
+        #expect(
+            String(decoding: data, as: UTF8.self)
+                == "\"bafybeidskjjd4zmr7oh6ku6wp72vvbxyibcli2r6if3ocdcy7jjjusvl2u\""
+        )
+
+        let decoded = try JSONDecoder().decode(CID.self, from: data)
+        #expect(decoded == cid)
+    }
+
+    @Test func testCodable_RoundTripV0() throws {
+        let cid = try CID("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
+        let data = try JSONEncoder().encode(cid)
+        let decoded = try JSONDecoder().decode(CID.self, from: data)
+
+        #expect(decoded.version == .v0)
+        #expect(decoded == cid)
+        #expect(decoded.toBaseEncodedString == "QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
+    }
+
+    /// - MARK: string(base:)
+
+    @Test func testStringBase_MatchesToBaseEncodedStringAndThrowsForV0() throws {
+        let cid = try CID("bafybeidskjjd4zmr7oh6ku6wp72vvbxyibcli2r6if3ocdcy7jjjusvl2u")
+        #expect(
+            try cid.string(base: .base16)
+                == "f017012207252523e6591fb8fe553d67ff55a86f84044b46a3e4176e10c58fa529a4aabd5"
+        )
+
+        let v0 = try CID("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
+        #expect(throws: CIDError.invalidV0Multibase) {
+            try v0.string(base: .base16)
+        }
+    }
+
+    /// - MARK: Content-hashing initializers
+
+    @Test func testContentInit_MatchesManualMultihash() throws {
+        let manual = try Multihash(raw: "hello world", hashedWith: .sha2_256)
+        let expected = try CID(version: .v1, codec: .dag_pb, multihash: manual)
+
+        let fromString = try CID(version: .v1, codec: .dag_pb, content: "hello world", hashedWith: .sha2_256)
+        let fromBytes = try CID(
+            version: .v1,
+            codec: .dag_pb,
+            content: Array("hello world".utf8),
+            hashedWith: .sha2_256
+        )
+        let fromData = try CID(
+            version: .v1,
+            codec: .dag_pb,
+            content: Data("hello world".utf8),
+            hashedWith: .sha2_256
+        )
+
+        #expect(fromString == expected)
+        #expect(fromBytes == expected)
+        #expect(fromData == expected)
+        #expect(fromString.multihash == manual)
+    }
+
+    @Test func testContentInit_V0() throws {
+        // sha2-256 of "hello world" as a v0 CID
+        let cid = try CID(version: .v0, codec: .dag_pb, content: "hello world", hashedWith: .sha2_256)
+        #expect(cid.version == .v0)
+        #expect(cid.toBaseEncodedString == "QmaozNR7DZHQK1ZcU9p7QdrshMvXqWK6gpu5rmrkPdT3L4")
+    }
+
+    /// - MARK: Non-mutating version converters
+
+    @Test func testConvertedToV1_LeavesReceiverUnchanged() throws {
+        let v0 = try CID("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
+        let v1 = v0.convertedToV1()
+
+        #expect(v0.version == .v0)  // receiver untouched
+        #expect(v1.version == .v1)
+        #expect(v1.multihash == v0.multihash)
+    }
+
+    @Test func testConvertedToV0_LeavesReceiverUnchangedAndThrowsForNonDagPb() throws {
+        let mh = try Multihash(raw: "hello world", hashedWith: .sha2_256)
+        let v1 = try CID(version: .v1, codec: .dag_pb, multihash: mh)
+        let v0 = try v1.convertedToV0()
+
+        #expect(v1.version == .v1)  // receiver untouched
+        #expect(v0.version == .v0)
+        #expect(v0.multihash == mh)
+
+        let cbor = try CID(version: .v1, codec: .dag_cbor, multihash: mh)
+        #expect(throws: CIDError.invalidV0Codec) {
+            try cbor.convertedToV0()
+        }
+    }
+
+    /// - MARK: CIDError presentation
+
+    @Test func testCIDError_LocalizedDescriptionIsSurfaced() throws {
+        let error = CIDError.invalidV0Multibase
+        #expect(error.errorDescription == "CID v0 only supports base58btc encoding")
+        #expect((error as Error).localizedDescription == "CID v0 only supports base58btc encoding")
+    }
 }
