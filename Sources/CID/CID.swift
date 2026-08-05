@@ -124,7 +124,8 @@ public struct CID: Equatable, Sendable {
     /// The CID prefix includes the following...
     /// - [version] [codec] [hash-algo] [hash-length]
     public var prefix: [UInt8] {
-        self.value.dropLast(self.multihash.length!)
+        guard let digestLength = self.multihash.length else { return [] }
+        return Array(self.value.dropLast(digestLength))
     }
 
     /// Returns the entirety of the CID (prefixs and Multihash digest) as a base encoded string without the Multibase prefix
