@@ -363,8 +363,38 @@ public struct CID: Equatable, Sendable {
 }
 
 /// Equatable
+///
+/// - Note: Two CIDs are equal when their canonical bytes (`rawBuffer` — version, codec and
+///   multihash) match. The `multibase` used for string presentation is intentionally **not**
+///   part of equality, so the same CID rendered in different bases compares equal.
 public func == (lhs: CID, rhs: CID) -> Bool {
     lhs.rawBuffer == rhs.rawBuffer
+}
+
+/// Hashable
+///
+/// Hashes the same canonical bytes that `==` compares, so equal CIDs always share a hash value
+/// (safe for use as `Set` members / `Dictionary` keys).
+extension CID: Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(self.rawBuffer)
+    }
+}
+
+/// Codable
+///
+/// A CID is encoded as its single canonical, multibase-prefixed string (via `toBaseEncodedString`)
+/// and decoded back through `init(_ cid: String)`.
+extension CID: Codable {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        try self.init(try container.decode(String.self))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(self.toBaseEncodedString)
+    }
 }
 
 extension CID: CustomStringConvertible {
