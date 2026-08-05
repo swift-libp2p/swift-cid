@@ -685,4 +685,117 @@ struct CIDTests {
             try CID("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zIII")
         }
     }
+
+    /// - MARK: Raw Bytes (Spec compliance & interop)
+
+    /// A CIDv0's binary form is the bare 34 byte multihash (`<hash-algo><hash-length><digest>`);
+    /// the version and codec are implicit and must NOT be encoded into the raw bytes.
+    @Test func testVersion0_RawBufferIsCanonical34ByteMultihash() throws {
+        let cid = try CID("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
+
+        #expect(cid.version == .v0)
+        #expect(cid.rawBuffer == Array(cid.multihash.value))
+        #expect(cid.rawData == Data(cid.multihash.value))
+        #expect(cid.rawBuffer.count == 34)
+        // Canonical CIDv0 multihash begins with sha2-256 (0x12) and length 32 (0x20)
+        #expect(Array(cid.rawBuffer.prefix(2)) == [0x12, 0x20])
+    }
+
+    /// - MARK: Re-basing (toBaseEncodedString(_:))
+
+    /// A v1 CID must honor the base requested via toBaseEncodedString(_:), not its original multibase.
+    @Test func testVersion1_ToBaseEncodedStringHonorsRequestedBase() throws {
+        let cid = try CID("bafybeidskjjd4zmr7oh6ku6wp72vvbxyibcli2r6if3ocdcy7jjjusvl2u")
+        #expect(cid.multibase == .base32)
+
+        let base16 = try cid.toBaseEncodedString(.base16)
+        #expect(
+            base16 == "f017012207252523e6591fb8fe553d67ff55a86f84044b46a3e4176e10c58fa529a4aabd5"
+        )
+        // Re-basing actually changed the output (regression guard for the ignored-argument bug)
+        #expect(base16 != cid.toBaseEncodedString)
+
+        // Round trips back to the same CID regardless of the transport base
+        #expect(try CID(base16) == cid)
+    }
+
+    /// - MARK: Prefix
+
+    /// `prefix` must not crash for a small / identity multihash.
+    @Test func testPrefix_IdentityMultihashDoesNotCrash() throws {
+        let mh = try Multihash(raw: "abc", hashedWith: .identity)
+        let cid = try CID(version: .v1, codec: .dag_cbor, multihash: mh)
+
+        // version (0x01) + codec dag-cbor (0x71) + multihash prefix (identity 0x00, length 0x03)
+        #expect(cid.prefix.asString(base: .base16) == "01710003")
+    }
+
+    /// - MARK: Binary Round Trips
+
+    @Test func testRoundTrip_V0Binary() throws {
+        let cid = try CID("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
+        let rt = try CID(cid.rawData)
+
+        #expect(rt.version == .v0)
+        #expect(rt == cid)
+        #expect(rt.rawData == cid.rawData)
+    }
+
+    @Test func testRoundTrip_V1SingleByteCodec() throws {
+        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let cid = try CID(version: .v1, codec: .dag_cbor, multihash: mh)
+        let rt = try CID(cid.rawData)
+
+        #expect(rt.version == .v1)
+        #expect(rt.codec == .dag_cbor)
+        #expect(rt == cid)
+    }
+
+    @Test func testRoundTrip_V1MultiByteCodec() throws {
+        let ethHash = try Data(
+            decoding: "8a8e84c797605fbe75d5b5af107d4220a2db0ad35fd66d9be3d38d87c472b26d",
+            as: .base16
+        )
+        let mh = try Multihash(raw: ethHash, hashedWith: .keccak_256)
+        let cid = try CID(version: .v1, codec: .eth_block, multihash: mh)
+        let rt = try CID(cid.rawData)
+
+        #expect(rt.version == .v1)
+        #expect(rt.codec == .eth_block)
+        #expect(rt == cid)
+    }
+
+    /// - MARK: Spec / Negative cases
+
+    /// A raw sha2-256 multihash that is explicitly multibase-encoded (here base16, 'f' prefix)
+    /// must be rejected: CIDv0 multihashes may not be multibase-encoded (there is no CIDv18).
+    @Test func testMultibaseEncodedMultihashWithLeading0x12Throws() throws {
+        let explicitlyEncodedMultihash =
+            "f1220ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        #expect(throws: CIDError.self) {
+            try CID(explicitlyEncodedMultihash)
+        }
+    }
+
+    /// Reserved CID versions (v2 = 0x02, v3 = 0x03) are not supported.
+    @Test func testReservedVersionsThrow() throws {
+        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        for reserved: UInt8 in [0x02, 0x03] {
+            var bytes: [UInt8] = [reserved, 0x71]  // reserved version + dag-cbor
+            bytes.append(contentsOf: mh.value)
+            #expect(throws: CIDError.invalidVersion) {
+                try CID(bytes)
+            }
+        }
+    }
+
+    /// A valid v1 frame (version + codec) wrapping a truncated multihash must throw.
+    @Test func testTruncatedMultihashThrows() throws {
+        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        var bytes: [UInt8] = [0x01, 0x71]  // v1 + dag-cbor
+        bytes.append(contentsOf: mh.value.dropLast(4))  // chop 4 digest bytes
+        #expect(throws: CIDError.self) {
+            try CID(bytes)
+        }
+    }
 }
