@@ -51,7 +51,7 @@ public enum CIDError: Error, Equatable {
     }
 }
 
-extension CIDError {
+extension CIDError: CustomStringConvertible, LocalizedError {
     public var description: String {
         switch self {
         case .invalidMultihash(let e):
@@ -72,6 +72,9 @@ extension CIDError {
             return "CID v0 only supports base58btc encoding"
         }
     }
+
+    /// Surfaces `description` through the standard `Error.localizedDescription` machinery.
+    public var errorDescription: String? { self.description }
 }
 
 public struct CID: Equatable, Sendable {
