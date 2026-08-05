@@ -275,6 +275,74 @@ public struct CID: Equatable, Sendable {
         try self.init(version: version, codec: codec, hash: multihash, multibase: version == .v0 ? .base58btc : .base32)
     }
 
+    /// Initialize a new CID by hashing raw `content` in a single step.
+    ///
+    /// This is a convenience over building a `Multihash` yourself: the `content` is hashed with the
+    /// supplied `hashFunction` (e.g. `.sha2_256`) to produce the CID's multihash.
+    /// - Parameters:
+    ///   - version: The CID version to create.
+    ///   - codec: The content-type codec of the data being addressed (e.g. `.dag_pb`).
+    ///   - content: The raw bytes to hash.
+    ///   - hashFunction: The multihash hash function to hash `content` with (e.g. `.sha2_256`).
+    ///   - customByteLength: An optional truncated digest length, forwarded to `Multihash`.
+    public init(
+        version: CIDVersion,
+        codec: Codecs,
+        content: [UInt8],
+        hashedWith hashFunction: Codecs,
+        customByteLength: Int? = nil
+    ) throws {
+        let mh: Multihash
+        do {
+            mh = try Multihash(raw: content, hashedWith: hashFunction, customByteLength: customByteLength)
+        } catch {
+            throw CIDError.invalidMultihash(error)
+        }
+        try self.init(version: version, codec: codec, multihash: mh)
+    }
+
+    /// Initialize a new CID by hashing raw `content` Data in a single step.
+    /// - Note: Delegates to `init(version:codec:content:hashedWith:customByteLength:)`.
+    public init(
+        version: CIDVersion,
+        codec: Codecs,
+        content: Data,
+        hashedWith hashFunction: Codecs,
+        customByteLength: Int? = nil
+    ) throws {
+        try self.init(
+            version: version,
+            codec: codec,
+            content: Array(content),
+            hashedWith: hashFunction,
+            customByteLength: customByteLength
+        )
+    }
+
+    /// Initialize a new CID by hashing the `content` String's encoded bytes in a single step.
+    /// - Note: Delegates to `init(version:codec:content:hashedWith:customByteLength:)`.
+    public init(
+        version: CIDVersion,
+        codec: Codecs,
+        content: String,
+        hashedWith hashFunction: Codecs,
+        using encoding: String.Encoding = .utf8,
+        customByteLength: Int? = nil
+    ) throws {
+        let mh: Multihash
+        do {
+            mh = try Multihash(
+                raw: content,
+                hashedWith: hashFunction,
+                using: encoding,
+                customByteLength: customByteLength
+            )
+        } catch {
+            throw CIDError.invalidMultihash(error)
+        }
+        try self.init(version: version, codec: codec, multihash: mh)
+    }
+
     public init(_ cid: CID) {
         try! self.init(version: cid.version, codec: cid.codec, hash: cid.multihash, multibase: cid.multibase)
     }
