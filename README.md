@@ -40,7 +40,7 @@ let package = Package(
     ...
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(url: "https://github.com/swift-libp2p/swift-cid.git", .upToNextMajor(from: "0.0.1")),
+        .package(url: "https://github.com/swift-libp2p/swift-cid.git", .upToNextMinor(from: "0.2.0")),
         ...
     ],
     ...
@@ -106,6 +106,11 @@ Check out [CIDTests.swift](https://github.com/SwiftEthereum/CID/blob/main/Tests/
 CID.init(version:CIDVersion, codec:Codecs, hash:[UInt8])
 CID.init(version:CIDVersion, codec:Codecs, hash:String)
 
+/// Hash raw content directly (no need to build a Multihash first)
+CID.init(version:CIDVersion, codec:Codecs, content:[UInt8], hashedWith:Codecs, customByteLength:Int? = nil)
+CID.init(version:CIDVersion, codec:Codecs, content:Data,    hashedWith:Codecs, customByteLength:Int? = nil)
+CID.init(version:CIDVersion, codec:Codecs, content:String,  hashedWith:Codecs, using:String.Encoding = .utf8, customByteLength:Int? = nil)
+
 /// From a Multihash
 CID.init(v0WithMultihash multihash:Multihash)
 
@@ -142,9 +147,22 @@ CID.rawData:Data
 CID.prefix:[UInt8]
 
 
-/// Convert between CID versions
+/// Encode the CID in an arbitrary base (multibase-prefixed, spec compliant)
+CID.string(base: BaseEncoding) throws -> String
+
+/// Convert between CID versions (mutating, in place)
 CID.toV1()
 CID.toV0()
+
+/// Convert between CID versions (non-mutating, returns a new CID)
+CID.convertedToV1() -> CID
+CID.convertedToV0() throws -> CID
+
+/// Protocol conformances
+/// - Equatable / Hashable: compares & hashes the canonical bytes (multibase is ignored)
+/// - Codable: encodes as its canonical multibase string
+/// - Sendable, CustomStringConvertible
+CID: Equatable, Hashable, Codable, Sendable
 
 ```
 
@@ -278,4 +296,4 @@ Let's make this code better together! 🤝
 
 ## License
 
-[MIT](LICENSE) © 2022 Breth Inc.
+[MIT](LICENSE) © 2026 Breth Inc.

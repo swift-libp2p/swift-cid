@@ -51,7 +51,7 @@ public enum CIDError: Error, Equatable {
     }
 }
 
-extension CIDError {
+extension CIDError: CustomStringConvertible, LocalizedError {
     public var description: String {
         switch self {
         case .invalidMultihash(let e):
@@ -72,6 +72,9 @@ extension CIDError {
             return "CID v0 only supports base58btc encoding"
         }
     }
+
+    /// Surfaces `description` through the standard `Error.localizedDescription` machinery.
+    public var errorDescription: String? { self.description }
 }
 
 public struct CID: Equatable, Sendable {
@@ -106,17 +109,30 @@ public struct CID: Equatable, Sendable {
             guard base == .base58btc else { throw CIDError.invalidV0Multibase }
             return self.multihash.asString(base: .base58btc)
         }
-        return self.value.asString(base: self.multibase, withMultibasePrefix: true)
+        return self.value.asString(base: base, withMultibasePrefix: true)
+    }
+
+    /// Returns the canonical, multibase-prefixed CID string encoded in the requested `base`.
+    ///
+    /// This is the public, spec-compliant way to render a CID in an arbitrary base. For a CIDv0
+    /// only `.base58btc` is permitted (any other base throws `CIDError.invalidV0Multibase`).
+    public func string(base: BaseEncoding) throws -> String {
+        try self.toBaseEncodedString(base)
     }
 
     /// Returns the entirety of the CID as a UInt8 Array / Buffer (Prefixs and Multihash Digest)
+    ///
+    /// - Note: For a CIDv0 this is the bare 34 byte multihash (`<hash-algo><hash-length><digest>`)
+    ///   as mandated by the CID spec — the version and codec are implicit and are **not** encoded.
     public var rawBuffer: [UInt8] {
-        self.value
+        self.version == .v0 ? Array(self.multihash.value) : self.value
     }
 
     /// Returns the entirety of the CID as Data (Prefixs and Multihash Digest)
+    ///
+    /// - Note: For a CIDv0 this is the bare 34 byte multihash (see `rawBuffer`).
     public var rawData: Data {
-        Data(self.value)
+        Data(self.rawBuffer)
     }
 
     /// Returns the CIDs Prefix (includes everything but the multihash digest)
@@ -124,7 +140,8 @@ public struct CID: Equatable, Sendable {
     /// The CID prefix includes the following...
     /// - [version] [codec] [hash-algo] [hash-length]
     public var prefix: [UInt8] {
-        self.value.dropLast(self.multihash.length!)
+        guard let digestLength = self.multihash.length else { return [] }
+        return Array(self.value.dropLast(digestLength))
     }
 
     /// Returns the entirety of the CID (prefixs and Multihash digest) as a base encoded string without the Multibase prefix
@@ -147,6 +164,14 @@ public struct CID: Equatable, Sendable {
         if let d = try? BaseEncoding.decode(cid) {
             // After base decoding, CID data consists of...
             // <Version 1 byte> <Codec> <Multihash>
+            //
+            // Spec guard: a multibase-encoded CID may not decode to a leading `0x12` byte. CIDv0
+            // multihashes (sha2-256, `0x12`) are never multibase-encoded, and there is no CIDv18
+            // (`0x12` = 18), so an explicit multibase prefix followed by `0x12` is ambiguous.
+            // Bare base58btc "Qm..." v0 CIDs carry no explicit prefix and remain valid.
+            if !cid.hasPrefix("Qm"), d.data.first == 0x12 {
+                throw CIDError.invalidCIDString
+            }
             try self.init(d.data, base: d.base)
         } else {
             //Base Decoding Failed... Assuming CID String is a V0 base58btc string...
@@ -250,6 +275,74 @@ public struct CID: Equatable, Sendable {
         try self.init(version: version, codec: codec, hash: multihash, multibase: version == .v0 ? .base58btc : .base32)
     }
 
+    /// Initialize a new CID by hashing raw `content` in a single step.
+    ///
+    /// This is a convenience over building a `Multihash` yourself: the `content` is hashed with the
+    /// supplied `hashFunction` (e.g. `.sha2_256`) to produce the CID's multihash.
+    /// - Parameters:
+    ///   - version: The CID version to create.
+    ///   - codec: The content-type codec of the data being addressed (e.g. `.dag_pb`).
+    ///   - content: The raw bytes to hash.
+    ///   - hashFunction: The multihash hash function to hash `content` with (e.g. `.sha2_256`).
+    ///   - customByteLength: An optional truncated digest length, forwarded to `Multihash`.
+    public init(
+        version: CIDVersion,
+        codec: Codecs,
+        content: [UInt8],
+        hashedWith hashFunction: Codecs,
+        customByteLength: Int? = nil
+    ) throws {
+        let mh: Multihash
+        do {
+            mh = try Multihash(raw: content, hashedWith: hashFunction, customByteLength: customByteLength)
+        } catch {
+            throw CIDError.invalidMultihash(error)
+        }
+        try self.init(version: version, codec: codec, multihash: mh)
+    }
+
+    /// Initialize a new CID by hashing raw `content` Data in a single step.
+    /// - Note: Delegates to `init(version:codec:content:hashedWith:customByteLength:)`.
+    public init(
+        version: CIDVersion,
+        codec: Codecs,
+        content: Data,
+        hashedWith hashFunction: Codecs,
+        customByteLength: Int? = nil
+    ) throws {
+        try self.init(
+            version: version,
+            codec: codec,
+            content: Array(content),
+            hashedWith: hashFunction,
+            customByteLength: customByteLength
+        )
+    }
+
+    /// Initialize a new CID by hashing the `content` String's encoded bytes in a single step.
+    /// - Note: Delegates to `init(version:codec:content:hashedWith:customByteLength:)`.
+    public init(
+        version: CIDVersion,
+        codec: Codecs,
+        content: String,
+        hashedWith hashFunction: Codecs,
+        using encoding: String.Encoding = .utf8,
+        customByteLength: Int? = nil
+    ) throws {
+        let mh: Multihash
+        do {
+            mh = try Multihash(
+                raw: content,
+                hashedWith: hashFunction,
+                using: encoding,
+                customByteLength: customByteLength
+            )
+        } catch {
+            throw CIDError.invalidMultihash(error)
+        }
+        try self.init(version: version, codec: codec, multihash: mh)
+    }
+
     public init(_ cid: CID) {
         try! self.init(version: cid.version, codec: cid.codec, hash: cid.multihash, multibase: cid.multibase)
     }
@@ -270,8 +363,38 @@ public struct CID: Equatable, Sendable {
 }
 
 /// Equatable
+///
+/// - Note: Two CIDs are equal when their canonical bytes (`rawBuffer` — version, codec and
+///   multihash) match. The `multibase` used for string presentation is intentionally **not**
+///   part of equality, so the same CID rendered in different bases compares equal.
 public func == (lhs: CID, rhs: CID) -> Bool {
     lhs.rawBuffer == rhs.rawBuffer
+}
+
+/// Hashable
+///
+/// Hashes the same canonical bytes that `==` compares, so equal CIDs always share a hash value
+/// (safe for use as `Set` members / `Dictionary` keys).
+extension CID: Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(self.rawBuffer)
+    }
+}
+
+/// Codable
+///
+/// A CID is encoded as its single canonical, multibase-prefixed string (via `toBaseEncodedString`)
+/// and decoded back through `init(_ cid: String)`.
+extension CID: Codable {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        try self.init(try container.decode(String.self))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(self.toBaseEncodedString)
+    }
 }
 
 extension CID: CustomStringConvertible {
@@ -287,7 +410,11 @@ extension CID: CustomStringConvertible {
 
 /// Utilities
 extension CID {
-    /// Multihash remains the same between v0 and v1
+    /// Converts this CID to v1 in place. The multihash is preserved across versions.
+    ///
+    /// - Note: The existing `multibase` is preserved. A CIDv0 (always base58btc) therefore becomes a
+    ///   v1 that still renders in base58btc rather than the conventional v1 default of base32; call
+    ///   `string(base: .base32)` (or re-create with a base32 multibase) if you need the base32 form.
     public mutating func toV1() {
         if self.version == .v1 { return }
         self = try! CID(version: .v1, codec: self.codec, hash: self.multihash, multibase: self.multibase)
@@ -301,5 +428,21 @@ extension CID {
             throw CIDError.invalidV0Multihash
         }
         self = try CID(version: .v0, codec: self.codec, hash: self.multihash, multibase: .base58btc)
+    }
+
+    /// Returns a copy of this CID converted to v1, leaving the receiver unchanged.
+    /// - SeeAlso: The mutating `toV1()` for the base-preservation behavior.
+    public func convertedToV1() -> CID {
+        var copy = self
+        copy.toV1()
+        return copy
+    }
+
+    /// Returns a copy of this CID converted to v0, leaving the receiver unchanged.
+    /// - Throws: `CIDError.invalidV0Codec` / `.invalidV0Multihash` if the CID can't be represented as v0.
+    public func convertedToV0() throws -> CID {
+        var copy = self
+        try copy.toV0()
+        return copy
     }
 }
