@@ -304,7 +304,11 @@ extension CID: CustomStringConvertible {
 
 /// Utilities
 extension CID {
-    /// Multihash remains the same between v0 and v1
+    /// Converts this CID to v1 in place. The multihash is preserved across versions.
+    ///
+    /// - Note: The existing `multibase` is preserved. A CIDv0 (always base58btc) therefore becomes a
+    ///   v1 that still renders in base58btc rather than the conventional v1 default of base32; call
+    ///   `string(base: .base32)` (or re-create with a base32 multibase) if you need the base32 form.
     public mutating func toV1() {
         if self.version == .v1 { return }
         self = try! CID(version: .v1, codec: self.codec, hash: self.multihash, multibase: self.multibase)
@@ -318,5 +322,21 @@ extension CID {
             throw CIDError.invalidV0Multihash
         }
         self = try CID(version: .v0, codec: self.codec, hash: self.multihash, multibase: .base58btc)
+    }
+
+    /// Returns a copy of this CID converted to v1, leaving the receiver unchanged.
+    /// - SeeAlso: The mutating `toV1()` for the base-preservation behavior.
+    public func convertedToV1() -> CID {
+        var copy = self
+        copy.toV1()
+        return copy
+    }
+
+    /// Returns a copy of this CID converted to v0, leaving the receiver unchanged.
+    /// - Throws: `CIDError.invalidV0Codec` / `.invalidV0Multihash` if the CID can't be represented as v0.
+    public func convertedToV0() throws -> CID {
+        var copy = self
+        try copy.toV0()
+        return copy
     }
 }
