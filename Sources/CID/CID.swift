@@ -112,6 +112,14 @@ public struct CID: Equatable, Sendable {
         return self.value.asString(base: base, withMultibasePrefix: true)
     }
 
+    /// Returns the canonical, multibase-prefixed CID string encoded in the requested `base`.
+    ///
+    /// This is the public, spec-compliant way to render a CID in an arbitrary base. For a CIDv0
+    /// only `.base58btc` is permitted (any other base throws `CIDError.invalidV0Multibase`).
+    public func string(base: BaseEncoding) throws -> String {
+        try self.toBaseEncodedString(base)
+    }
+
     /// Returns the entirety of the CID as a UInt8 Array / Buffer (Prefixs and Multihash Digest)
     ///
     /// - Note: For a CIDv0 this is the bare 34 byte multihash (`<hash-algo><hash-length><digest>`)
