@@ -40,7 +40,7 @@ let package = Package(
     ...
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(url: "https://github.com/swift-libp2p/swift-cid.git", .upToNextMajor(from: "0.0.1")),
+        .package(url: "https://github.com/swift-libp2p/swift-cid.git", .upToNextMinor(from: "0.2.0")),
         ...
     ],
     ...
@@ -296,4 +296,4 @@ Let's make this code better together! 🤝
 
 ## License
 
-[MIT](LICENSE) © 2022 Breth Inc.
+[MIT](LICENSE) © 2026 Breth Inc.
