@@ -106,17 +106,22 @@ public struct CID: Equatable, Sendable {
             guard base == .base58btc else { throw CIDError.invalidV0Multibase }
             return self.multihash.asString(base: .base58btc)
         }
-        return self.value.asString(base: self.multibase, withMultibasePrefix: true)
+        return self.value.asString(base: base, withMultibasePrefix: true)
     }
 
     /// Returns the entirety of the CID as a UInt8 Array / Buffer (Prefixs and Multihash Digest)
+    ///
+    /// - Note: For a CIDv0 this is the bare 34 byte multihash (`<hash-algo><hash-length><digest>`)
+    ///   as mandated by the CID spec — the version and codec are implicit and are **not** encoded.
     public var rawBuffer: [UInt8] {
-        self.value
+        self.version == .v0 ? Array(self.multihash.value) : self.value
     }
 
     /// Returns the entirety of the CID as Data (Prefixs and Multihash Digest)
+    ///
+    /// - Note: For a CIDv0 this is the bare 34 byte multihash (see `rawBuffer`).
     public var rawData: Data {
-        Data(self.value)
+        Data(self.rawBuffer)
     }
 
     /// Returns the CIDs Prefix (includes everything but the multihash digest)
