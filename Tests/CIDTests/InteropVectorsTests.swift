@@ -2,7 +2,7 @@
 //
 // This source file is part of the swift-libp2p open source project
 //
-// Copyright (c) 2022-2025 swift-libp2p project authors
+// Copyright (c) 2022-2026 swift-libp2p project authors
 // Licensed under MIT
 //
 // See LICENSE for license information
@@ -36,7 +36,7 @@ struct CIDInteropVectorsTests {
     /// multihash (in base16, i.e. `<algo><len><digest>`).
     struct Vector: Sendable {
         let string: String
-        let version: CIDVersion
+        let version: CID.Version
         let code: Int
         let base: BaseEncoding
         let multihashHex: String
@@ -135,8 +135,8 @@ struct CIDInteropVectorsTests {
     /// The single sha2-256("foo") + Raw CID rendered across every base the reference impls assert.
     /// (rust-cid `to_string`, `to_string_of_base32`, `to_string_of_base64`, `to_string_of_base58_v0`.)
     @Test func testRawFooRenderedAcrossBases() throws {
-        let mh = try Multihash(raw: "foo", hashedWith: .sha2_256)
-        let v1 = try CID(version: .v1, codec: try Codecs("raw"), multihash: mh)
+        let mh = try Multihash(hashing: "foo", codec: .sha2_256)
+        let v1 = try CID(version: .v1, codec: try Codecs(name: "raw"), multihash: mh)
 
         #expect(v1.code == 85)
         #expect(v1.toBaseEncodedString == "bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy")
@@ -150,7 +150,7 @@ struct CIDInteropVectorsTests {
 
     /// js-multiformats reuses sha2-256("abc") heavily: v1 / dag-pb / base32.
     @Test func testAbcDagPbV1Base32() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
         let cid = try CID(version: .v1, codec: .dag_pb, multihash: mh)
         #expect(cid.toBaseEncodedString == "bafybeif2pall7dybz7vecqka3zo24irdwabwdi4wc55jznaq75q7eaavvu")
     }
@@ -185,8 +185,8 @@ struct CIDInteropVectorsTests {
     /// js-multiformats "rejects non-minimally encoded varint prefix": the CIDv1 version `0x01`
     /// re-encoded as the non-minimal two-byte varint `0x81 0x00` must be rejected.
     @Test func testNonMinimalVarintVersionThrows() throws {
-        let bytes = try [UInt8](
-            decoding: "81007012207252523e6591fb8fe553d67ff55a86f84044b46a3e4176e10c58fa529a4aabd5",
+        let bytes = try BaseEncoding.decode(
+            "81007012207252523e6591fb8fe553d67ff55a86f84044b46a3e4176e10c58fa529a4aabd5".utf8,
             as: .base16
         )
         #expect(throws: CIDError.self) {
@@ -208,17 +208,18 @@ struct CIDInteropVectorsTests {
     /// rust-cid rejects a binary CID that begins with an explicit `0x00` version byte
     /// (`00 70 12 20 …`). This package instead *accepts* that framing and parses it as a CIDv0,
     /// because it uses the same `<version><codec><multihash>` framing internally for v0 (see
-    /// `rawBuffer`). This test pins the current, intentional behavior so the divergence is explicit;
+    /// `canonicalBytes`). This test pins the current, intentional behavior so the divergence is
+    /// explicit;
     /// if we ever decide to match rust and reject explicit-v0, update this test deliberately.
     @Test func testExplicitV0BytesAreAcceptedAsV0() throws {
-        let bytes = try [UInt8](
-            decoding: "00701220ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        let bytes = try BaseEncoding.decode(
+            "00701220ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".utf8,
             as: .base16
         )
         let cid = try CID(bytes)
         #expect(cid.version == .v0)
         #expect(cid.codec == .dag_pb)
         // Canonical v0 bytes drop the explicit version/codec framing (34-byte multihash)
-        #expect(cid.rawBuffer.count == 34)
+        #expect(cid.canonicalBytes.count == 34)
     }
 }
