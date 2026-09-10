@@ -40,7 +40,7 @@ let package = Package(
     ...
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(url: "https://github.com/swift-libp2p/swift-cid.git", .upToNextMinor(from: "0.2.0")),
+        .package(url: "https://github.com/swift-libp2p/swift-cid.git", .upToNextMinor(from: "0.3.0")),
         ...
     ],
     ...
@@ -86,7 +86,7 @@ cid.toBaseEncodedString => "k51qzi5uqu5dj16qyiq0tajolkojyl9qdkr254920wxv7ghtuwcz
 
 Initialize a v1 CID from parts
 ```swift
-let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+let mh = try Multihash(hashing: "abc", codec: .sha2_256)
 let cid = try CID(version: .v1, codec: .dag_cbor, multihash: mh)
 
 cid.codec => .dag_cbor
@@ -96,31 +96,59 @@ cid.multibase => .base32
 cid.toBaseEncodedString => "bafyreif2pall7dybz7vecqka3zo24irdwabwdi4wc55jznaq75q7eaavvu"
 ```
 
+Read a CID out of a larger buffer, leaving whatever follows it for the next reader
+```swift
+let (cid, rest) = try CID.decode(prefixed: buffer)
+// or, equivalently
+let (cid, rest) = try buffer.cid()
+```
+
+Use a CID's bytes without copying them
+```swift
+cid.canonicalBytes      // ArraySlice<UInt8>, no copy
+Data(cid)               // CID is a RandomAccessCollection<UInt8>
+Array(cid)              // ...so wrap it in whatever container you need
+buffer.writeBytes(cid)  // NIO ByteBuffer
+```
+
 Check out [CIDTests.swift](https://github.com/SwiftEthereum/CID/blob/main/Tests/CIDTests/CIDTests.swift) for more examples on how you can instantiate and use CIDs
 
 ### API
+
+Every byte taking entry point is generic over `some Collection<UInt8>`, so `[UInt8]`, `Data`, and
+slices of either are all accepted without a copy. Everything that throws, throws a typed `CIDError`.
+
 ```swift
 
 /// Initializers
 /// Specify the version, codec and hash
-CID.init(version:CIDVersion, codec:Codecs, hash:[UInt8])
-CID.init(version:CIDVersion, codec:Codecs, hash:String)
+CID.init(version:CID.Version, codec:Codecs, hash:some Collection<UInt8>) throws(CIDError)
+CID.init(version:CID.Version, codec:Codecs, hash:some StringProtocol)    throws(CIDError)
+CID.init(version:CID.Version, codec:Codecs, multihash:Multihash)         throws(CIDError)
 
 /// Hash raw content directly (no need to build a Multihash first)
-CID.init(version:CIDVersion, codec:Codecs, content:[UInt8], hashedWith:Codecs, customByteLength:Int? = nil)
-CID.init(version:CIDVersion, codec:Codecs, content:Data,    hashedWith:Codecs, customByteLength:Int? = nil)
-CID.init(version:CIDVersion, codec:Codecs, content:String,  hashedWith:Codecs, using:String.Encoding = .utf8, customByteLength:Int? = nil)
+CID.init(version:CID.Version, codec:Codecs, content:some Collection<UInt8>, hashedWith:Codecs, truncatedTo:Int? = nil) throws(CIDError)
+CID.init(version:CID.Version, codec:Codecs, content:String,                 hashedWith:Codecs, using:String.Encoding = .utf8, truncatedTo:Int? = nil) throws(CIDError)
+
+/// ...or with a `HashFunction`, which rules out an unsupported algorithm at compile time
+CID.init(version:CID.Version, codec:Codecs, hashing:some Collection<UInt8>, with:HashFunction, truncatedTo:Int? = nil) throws(CIDError)
 
 /// From a Multihash
-CID.init(v0WithMultihash multihash:Multihash)
+CID.init(v0WithMultihash multihash:Multihash)              throws(CIDError)
+CID.init(v0WithMultihash multihash:some Collection<UInt8>) throws(CIDError)
 
-/// From a CID compliant String / Data
-CID.init(_ cid:String)
+/// From a CID compliant String / byte collection (exactly one CID, nothing may follow)
+CID.init(_ cid:some StringProtocol)                                   throws(CIDError)
+CID.init(_ cid:some Collection<UInt8>, base:BaseEncoding? = nil)      throws(CIDError)
+
+/// From a buffer that begins with a CID, returning the bytes that follow it
+CID.decode(prefixed:Bytes, base:BaseEncoding? = nil) throws(CIDError) -> (cid:CID, remaining:Bytes.SubSequence)
+Collection<UInt8>.cid()                              throws(CIDError) -> (cid:CID, bytes:SubSequence)
 
 
 /// Properties
 /// Integer based Enum, currently supports v0 or v1
-CID.version:CIDVersion
+CID.version:CID.Version
 
 /// The `Codec` used (ex: 'dag-pb')
 CID.codec:Codecs
@@ -134,12 +162,12 @@ CID.multihash:Multihash
 /// Returns the Integer code of the Codec used by this CID (ex: dag-pb' -> 112)
 CID.code:Int 
 
-/// Returns the entirety of the CID as Bytes (Prefixs and Multihash Digest)
-CID.rawBuffer:[UInt8] 
-    
-/// Returns the entirety of the CID as Data (Prefixs and Multihash Digest)
-CID.rawData:Data
-    
+/// The canonical binary form of the CID, as a slice of the internal buffer (no copy)
+///
+/// A CID is also a `RandomAccessCollection<UInt8>` over these same bytes, so use `Array(cid)`
+/// or `Data(cid)` when you need to own a copy.
+CID.canonicalBytes:ArraySlice<UInt8>
+
 /// Returns the CIDs Prefix (includes everything but the multihash digest)
 ///
 /// The CID prefix includes the following...
@@ -148,21 +176,22 @@ CID.prefix:[UInt8]
 
 
 /// Encode the CID in an arbitrary base (multibase-prefixed, spec compliant)
-CID.string(base: BaseEncoding) throws -> String
+CID.string(base: BaseEncoding) throws(CIDError) -> String
 
 /// Convert between CID versions (mutating, in place)
 CID.toV1()
-CID.toV0()
+CID.toV0() throws(CIDError)
 
 /// Convert between CID versions (non-mutating, returns a new CID)
 CID.convertedToV1() -> CID
-CID.convertedToV0() throws -> CID
+CID.convertedToV0() throws(CIDError) -> CID
 
 /// Protocol conformances
 /// - Equatable / Hashable: compares & hashes the canonical bytes (multibase is ignored)
+/// - RandomAccessCollection / ContiguousBytes: over `canonicalBytes`, so a CID *is* a byte buffer
 /// - Codable: encodes as its canonical multibase string
 /// - Sendable, CustomStringConvertible
-CID: Equatable, Hashable, Codable, Sendable
+CID: Equatable, Hashable, Codable, Sendable, RandomAccessCollection, ContiguousBytes
 
 ```
 

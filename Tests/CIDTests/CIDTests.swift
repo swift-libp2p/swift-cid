@@ -2,7 +2,7 @@
 //
 // This source file is part of the swift-libp2p open source project
 //
-// Copyright (c) 2022-2025 swift-libp2p project authors
+// Copyright (c) 2022-2026 swift-libp2p project authors
 // Licensed under MIT
 //
 // See LICENSE for license information
@@ -29,7 +29,10 @@ struct CIDTests {
         #expect(cid.codec == .dag_pb)
         #expect(cid.code == 112)
         #expect(cid.version == .v0)
-        #expect(try cid.multihash == Multihash(b58String: "QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n"))
+        #expect(
+            try cid.multihash
+                == Multihash(BaseEncoding.decode("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n".utf8, as: .base58btc))
+        )
         #expect(cid.multihash.asString(base: .base58btc) == mhStr)
         #expect(cid.multibase == .base58btc)
 
@@ -37,7 +40,7 @@ struct CIDTests {
     }
 
     @Test func testVersion0_UInt8Array() throws {
-        let mh = try Multihash(raw: "hello world", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "hello world", codec: .sha2_256)
         let mhStr = "QmaozNR7DZHQK1ZcU9p7QdrshMvXqWK6gpu5rmrkPdT3L4"
         let cid = try CID(mh.value)
 
@@ -49,11 +52,11 @@ struct CIDTests {
         #expect(cid.multibase == .base58btc)
 
         #expect(cid.toBaseEncodedString == mhStr)
-        //print(cid.rawBuffer.map { "\($0)" }.joined(separator: " "))
+        //print(cid.canonicalBytes.map { "\($0)" }.joined(separator: " "))
     }
 
     @Test func testVersion0_CreateByParts() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
         let cid = try CID(version: .v0, codec: .dag_pb, multihash: mh)
 
         #expect(cid.codec == Codecs.dag_pb)
@@ -64,8 +67,8 @@ struct CIDTests {
     }
 
     @Test func testVersion0_CreateByPartsIntCodec() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
-        let cid = try CID(version: .v0, codec: try Codecs(112), multihash: mh)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
+        let cid = try CID(version: .v0, codec: try Codecs(code: 112), multihash: mh)
 
         #expect(cid.codec == Codecs.dag_pb)
         #expect(cid.code == 112)
@@ -75,7 +78,7 @@ struct CIDTests {
     }
 
     @Test func testVersion0_CreateByV0Multihash() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
         let cid = try CID(v0WithMultihash: mh)
 
         #expect(cid.codec == Codecs.dag_pb)
@@ -93,18 +96,11 @@ struct CIDTests {
     }
 
     @Test func testVersion0_NonDAG_PB_Version0() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
         #expect(throws: CIDError.invalidV0Codec) {
             try CID(version: .v0, codec: .dag_cbor, multihash: mh)
         }
     }
-
-    /// - TODO: We dont support specifiying the base...
-    //it('throws on trying to create a CIDv0 with a base other than base58btc', () => {
-    //  expect(
-    //    () => new CID(0, 'dag-pb', hash, 'base32')
-    //  ).to.throw("multibaseName must be 'base58btc' for CIDv0")
-    //})
 
     @Test func testVersion0_PreventNonB58Encodings() throws {
         let cid = try CID("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
@@ -120,7 +116,7 @@ struct CIDTests {
     }
 
     @Test func testVersion0_Prefix() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
         let cid = try CID(v0WithMultihash: mh)
 
         #expect(cid.codec == Codecs.dag_pb)
@@ -129,13 +125,12 @@ struct CIDTests {
         #expect(cid.multihash == mh)
         #expect(cid.multibase == .base58btc)
 
-        #expect(cid.prefix.toHexString() == "00701220")
+        #expect(cid.prefix.asString(base: .base16) == "00701220")
         #expect(cid.prefix.asString(base: .base16) == "00701220")
     }
 
-    /// - TODO: CID.Bytes should return Multihash value???
     @Test func testVersion0_RawBytes() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
         let cid = try CID(v0WithMultihash: mh)
 
         #expect(cid.codec == Codecs.dag_pb)
@@ -143,25 +138,13 @@ struct CIDTests {
         #expect(cid.version == .v0)
         #expect(cid.multihash == mh)
         #expect(cid.multibase == .base58btc)
+        #expect(Array(cid.canonicalBytes) == mh.value)
 
         #expect(
             cid.multihash.asString(base: .base16)
                 == "1220ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         )
     }
-
-    /// - TODO: Support Instantiating CIDs from CIDs...
-    //it('should construct from an old CID without a multibaseName', () => {
-    //  const cidStr = 'QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n'
-
-    //  const oldCid = new CID(cidStr)
-    //  delete oldCid.multibaseName // Fake it
-
-    //  const newCid = new CID(oldCid)
-
-    //  expect(newCid.multibaseName).to.equal('base58btc')
-    //  expect(newCid.toString()).to.equal(cidStr)
-    //})
 
     @Test func testVersion1_MultibaseEncodedString() throws {
         let cidString = "zdj7Wd8AMwqnhJGQCbFxBVodGSBG84TM7Hs1rcJuQMwTyfEDS"
@@ -177,12 +160,12 @@ struct CIDTests {
 
     @Test func testVersion1_NonMultibaseEncodedString() throws {
         let cidString = "bafybeidskjjd4zmr7oh6ku6wp72vvbxyibcli2r6if3ocdcy7jjjusvl2u"
-        let cidBuf = try Data(
-            decoding: "017012207252523e6591fb8fe553d67ff55a86f84044b46a3e4176e10c58fa529a4aabd5",
+        let cidBuf = try BaseEncoding.decode(
+            "017012207252523e6591fb8fe553d67ff55a86f84044b46a3e4176e10c58fa529a4aabd5".utf8,
             as: .base16
         )
 
-        let cid = try CID(Array(cidBuf))
+        let cid = try CID(cidBuf)
 
         #expect(cid.codec == Codecs.dag_pb)
         #expect(cid.code == 112)
@@ -206,7 +189,7 @@ struct CIDTests {
     }
 
     @Test func testVersion1_CreateByParts() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
         let cid = try CID(version: .v1, codec: .dag_cbor, multihash: mh)
 
         #expect(cid.codec == .dag_cbor)
@@ -219,7 +202,7 @@ struct CIDTests {
     }
 
     @Test func testVersion1_RoundTrip() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
         let cid1 = try CID(version: .v1, codec: .dag_cbor, multihash: mh)
         let cid2 = try CID(cid1.toBaseEncodedString)
 
@@ -237,11 +220,11 @@ struct CIDTests {
     }
 
     @Test func testVersion1_MultiByteCodecCodes() throws {
-        let ethBlockHash = try Data(
-            decoding: "8a8e84c797605fbe75d5b5af107d4220a2db0ad35fd66d9be3d38d87c472b26d",
+        let ethBlockHash = try BaseEncoding.decode(
+            "8a8e84c797605fbe75d5b5af107d4220a2db0ad35fd66d9be3d38d87c472b26d".utf8,
             as: .base16
         )
-        let mh = try Multihash(raw: ethBlockHash, hashedWith: .keccak_256)
+        let mh = try Multihash(hashing: ethBlockHash, codec: .keccak_256)
         let cid1 = try CID(version: .v1, codec: .eth_block, multihash: mh)
         let cid2 = try CID(cid1.toBaseEncodedString)
 
@@ -259,11 +242,11 @@ struct CIDTests {
     }
 
     @Test func testVersion1_MultiByteCodecCodes2() throws {
-        let p2pHash = try Data(
-            decoding: "8a8e84c797605fbe75d5b5af107d4220a2db0ad35fd66d9be3d38d87c472b26d",
+        let p2pHash = try BaseEncoding.decode(
+            "8a8e84c797605fbe75d5b5af107d4220a2db0ad35fd66d9be3d38d87c472b26d".utf8,
             as: .base16
         )
-        let mh = try Multihash(raw: p2pHash, hashedWith: .keccak_256)
+        let mh = try Multihash(hashing: p2pHash, codec: .keccak_256)
         let cid1 = try CID(version: .v1, codec: .p2p, multihash: mh)
         let cid2 = try CID(cid1.toBaseEncodedString)
         let cid3 = try CID(version: .v1, codec: .ipfs, multihash: mh)
@@ -289,7 +272,7 @@ struct CIDTests {
     }
 
     @Test func testVersion1_Prefix() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
         let cid1 = try CID(version: .v1, codec: .dag_cbor, multihash: mh)
 
         #expect(cid1.codec == .dag_cbor)
@@ -298,13 +281,13 @@ struct CIDTests {
         #expect(cid1.multihash == mh)
         #expect(cid1.multibase == .base32)
 
-        //print(cid1.rawBuffer.map { "\($0)" }.joined(separator: " "))
-        //print(cid1.rawBuffer.toHexString())
+        //print(cid1.canonicalBytes.map { "\($0)" }.joined(separator: " "))
+        //print(cid1.canonicalBytes.asString(base: .base16))
         #expect(cid1.prefix.asString(base: .base16) == "01711220")
     }
 
     @Test func testVersion1_Identity() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .identity)
+        let mh = try Multihash(hashing: "abc", codec: .identity)
 
         let cid1 = try CID(version: .v0, codec: .dag_pb, multihash: mh)
         #expect(cid1.codec == .dag_pb)
@@ -312,7 +295,7 @@ struct CIDTests {
         #expect(cid1.version == .v0)
         #expect(cid1.multihash == mh)
         #expect(cid1.multibase == .base58btc)
-        #expect(cid1.multihash.b58String == "161g3c")
+        #expect(cid1.multihash.asString(base: .base58btc) == "161g3c")
 
         let cid2 = try CID(version: .v1, codec: .dag_cbor, multihash: mh)
         #expect(cid2.codec == .dag_cbor)
@@ -323,17 +306,8 @@ struct CIDTests {
         #expect(cid2.toBaseEncodedString == "bafyqaa3bmjrq")
     }
 
-    /// - TODO: CID.Bytes should return Multihash value???
-    //it('.bytes', () => {
-    //  const codec = 'dag-cbor' // Invalid codec will cause an error: Issue #46
-    //  const cid = new CID(1, codec, hash)
-    //  const bytes = cid.bytes
-    //  expect(bytes).to.exist()
-    //  const str = uint8ArrayToString(bytes, 'base16')
-    //  expect(str).to.equals('01711220ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
-    //})
-    @Test func testVersion1_RawBytes() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+    @Test func testVersion1_CanonicalBytes() throws {
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
 
         let cid1 = try CID(version: .v1, codec: .dag_cbor, multihash: mh)
 
@@ -343,32 +317,29 @@ struct CIDTests {
         #expect(cid1.multihash == mh)
         #expect(cid1.multibase == .base32)
         #expect(
-            cid1.rawBuffer.toHexString() == "01711220ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-        )
-        #expect(
-            cid1.rawBuffer.asString(base: .base16)
+            cid1.canonicalBytes.asString(base: .base16)
                 == "01711220ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         )
     }
 
     @Test func testVersion1_UnknownCodec() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
         // TODO: Make MulticodecError public and specialize this
         #expect(throws: Error.self) {
-            try CID(version: .v1, codec: try Codecs(10000), multihash: mh)
+            try CID(version: .v1, codec: try Codecs(code: 10000), multihash: mh)
         }
     }
 
     @Test func testVersion1_UnknownCodec2() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
         // TODO: Make MulticodecError public and specialize this
         #expect(throws: Error.self) {
-            try CID(version: .v1, codec: try Codecs("this-codec-does-not-exist"), multihash: mh)
+            try CID(version: .v1, codec: try Codecs(name: "this-codec-does-not-exist"), multihash: mh)
         }
     }
 
     @Test func testToString_CIDString() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
 
         let cid = try CID(mh.value)
 
@@ -394,7 +365,7 @@ struct CIDTests {
         let base64URLStr = "uAXASIHJSUj5lkfuP5VPWf_VahvhARLRqPkF24QxY-lKaSqvV"
         let cid = try CID(base58Str)
         #expect(cid.toBaseEncodedString == base58Str)
-        #expect(cid.rawBuffer.asString(base: .base64Url, withMultibasePrefix: true) == base64URLStr)
+        #expect(cid.canonicalBytes.asString(base: .base64Url, withMultibasePrefix: true) == base64URLStr)
     }
 
     /// - MARK: Utilities
@@ -427,7 +398,7 @@ struct CIDTests {
         let cidStr = "QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n"
 
         let cid = try CID(cidStr)
-        let cidA = try CID(version: cid.version, codec: cid.codec, hash: cid.multihash.value)
+        let cidA = try CID(version: cid.version, codec: cid.codec, multihash: cid.multihash.value)
         let cidB = try CID(cidStr)
 
         #expect(cidA == cidB)
@@ -455,17 +426,17 @@ struct CIDTests {
             #expect(throws: CIDError.self) { try CID(Array(i.utf8)) }
 
             //As string with invalid codec and v0...
-            #expect(throws: CIDError.self) { try CID(version: .v0, codec: .dag_pb, hash: i) }
+            #expect(throws: CIDError.self) { try CID(version: .v0, codec: .dag_pb, multihash: i) }
 
             //As string with invalid codec and v1...
-            #expect(throws: CIDError.self) { try CID(version: .v1, codec: .dag_pb, hash: i) }
+            #expect(throws: CIDError.self) { try CID(version: .v1, codec: .dag_pb, multihash: i) }
         }
     }
 
     @Test func testInvalidVersions() {
         /// Enforce Supported Versions only...
         for i in (-2...3) {
-            let ver = CIDVersion(rawValue: i)
+            let ver = CID.Version(rawValue: i)
             switch i {
             case 0, 1:
                 #expect(ver != nil)
@@ -477,7 +448,7 @@ struct CIDTests {
 
     /// - MARK: Version Shifting...
     @Test func testVersionShifting_V0ToV1() throws {
-        let mh = try Multihash(raw: "hello world", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "hello world", codec: .sha2_256)
         var cid = try CID(version: .v0, codec: .dag_pb, multihash: mh)
 
         #expect(cid.codec == Codecs.dag_pb)
@@ -495,7 +466,7 @@ struct CIDTests {
     }
 
     @Test func testVersionShifting_V1ToV0() throws {
-        let mh = try Multihash(raw: "hello world", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "hello world", codec: .sha2_256)
         var cid = try CID(version: .v1, codec: .dag_pb, multihash: mh)
 
         #expect(cid.codec == Codecs.dag_pb)
@@ -513,7 +484,7 @@ struct CIDTests {
     }
 
     @Test func testVersionShifting_V1ToV0ThrowsIfWrongCodec() throws {
-        let mh = try Multihash(raw: "hello world", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "hello world", codec: .sha2_256)
         var cid = try CID(version: .v1, codec: .dag_cbor, multihash: mh)
 
         #expect(cid.codec == Codecs.dag_cbor)
@@ -528,7 +499,7 @@ struct CIDTests {
     }
 
     @Test func testVersionShifting_V1ToV0ThrowsIfWrongHashAlgo() throws {
-        let mh = try Multihash(raw: "hello world", hashedWith: .sha2_512)
+        let mh = try Multihash(hashing: "hello world", codec: .sha2_512)
         var cid = try CID(version: .v1, codec: .dag_pb, multihash: mh)
 
         #expect(cid.codec == Codecs.dag_pb)
@@ -543,7 +514,7 @@ struct CIDTests {
     }
 
     @Test func testVersionShifting_V1ToV0ThrowsIfWrongHashLength() throws {
-        let mh = try Multihash(raw: "hello world", hashedWith: .sha2_256, customByteLength: 31)
+        let mh = try Multihash(hashing: "hello world", codec: .sha2_256, truncatedTo: 31)
         var cid = try CID(version: .v1, codec: .dag_pb, multihash: mh)
 
         #expect(cid.codec == Codecs.dag_pb)
@@ -609,7 +580,7 @@ struct CIDTests {
     }
 
     @Test func testExampleTwo() throws {
-        let mh = try Multihash(raw: "hello world", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "hello world", codec: .sha2_256)
         let str = "z1CBaeXvdXThAxmycy1Ezp73CEFDiJ54MoSSjXodtViWzEyEAU"
         let cid = try CID(str)
         #expect(cid.codec == Codecs.dag_pb)
@@ -635,9 +606,9 @@ struct CIDTests {
         let str = "bafybeidskjjd4zmr7oh6ku6wp72vvbxyibcli2r6if3ocdcy7jjjusvl2u"
         let cid = try CID(str)
         //let cidBuf = uint8ArrayFromString('017012207252523e6591fb8fe553d67ff55a86f84044b46a3e4176e10c58fa529a4aabd5', 'base16')
-        //let buf = try BaseEncoding.decode("017012207252523e6591fb8fe553d67ff55a86f84044b46a3e4176e10c58fa529a4aabd5", as: .base16)
-        let buf = try [UInt8](
-            decoding: "017012207252523e6591fb8fe553d67ff55a86f84044b46a3e4176e10c58fa529a4aabd5",
+        //let buf = try BaseEncoding.decode("017012207252523e6591fb8fe553d67ff55a86f84044b46a3e4176e10c58fa529a4aabd5".utf8, as: .base16)
+        let buf = try BaseEncoding.decode(
+            "017012207252523e6591fb8fe553d67ff55a86f84044b46a3e4176e10c58fa529a4aabd5".utf8,
             as: .base16
         )
 
@@ -645,7 +616,7 @@ struct CIDTests {
         #expect(cid.code == 112)
         #expect(cid.version == .v1)
         #expect(cid.multibase == .base32)
-        #expect(cid.rawBuffer == buf)
+        #expect(Array(cid) == buf)
         #expect(cid.toBaseEncodedString == str)
     }
 
@@ -669,7 +640,7 @@ struct CIDTests {
     /// expect(cid).to.have.property('multihash')
     /// expect(cid).to.have.property('multibaseName', 'base58btc')
     @Test func testExample5() throws {
-        let multi = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let multi = try Multihash(hashing: "abc", codec: .sha2_256)
         let cid = try CID(version: .v0, codec: .dag_pb, multihash: multi)
 
         #expect(cid.codec == Codecs.dag_pb)
@@ -690,15 +661,17 @@ struct CIDTests {
 
     /// A CIDv0's binary form is the bare 34 byte multihash (`<hash-algo><hash-length><digest>`);
     /// the version and codec are implicit and must NOT be encoded into the raw bytes.
-    @Test func testVersion0_RawBufferIsCanonical34ByteMultihash() throws {
+    @Test func testVersion0_CanonicalBytesAre34ByteMultihash() throws {
         let cid = try CID("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
 
         #expect(cid.version == .v0)
-        #expect(cid.rawBuffer == Array(cid.multihash.value))
-        #expect(cid.rawData == Data(cid.multihash.value))
-        #expect(cid.rawBuffer.count == 34)
+        #expect(Array(cid) == Array(cid.multihash.value))
+        #expect(Data(cid) == Data(cid.multihash.value))
+        #expect(Data(cid) == Data(cid.canonicalBytes))
+        #expect(Array(cid) == Array(cid.canonicalBytes))
+        #expect(cid.canonicalBytes.count == 34)
         // Canonical CIDv0 multihash begins with sha2-256 (0x12) and length 32 (0x20)
-        #expect(Array(cid.rawBuffer.prefix(2)) == [0x12, 0x20])
+        #expect(Array(cid.canonicalBytes.prefix(2)) == [0x12, 0x20])
     }
 
     /// - MARK: Re-basing (toBaseEncodedString(_:))
@@ -723,7 +696,7 @@ struct CIDTests {
 
     /// `prefix` must not crash for a small / identity multihash.
     @Test func testPrefix_IdentityMultihashDoesNotCrash() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .identity)
+        let mh = try Multihash(hashing: "abc", codec: .identity)
         let cid = try CID(version: .v1, codec: .dag_cbor, multihash: mh)
 
         // version (0x01) + codec dag-cbor (0x71) + multihash prefix (identity 0x00, length 0x03)
@@ -734,17 +707,17 @@ struct CIDTests {
 
     @Test func testRoundTrip_V0Binary() throws {
         let cid = try CID("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
-        let rt = try CID(cid.rawData)
+        let rt = try CID(Data(cid))
 
         #expect(rt.version == .v0)
         #expect(rt == cid)
-        #expect(rt.rawData == cid.rawData)
+        #expect(Data(rt) == Data(cid))
     }
 
     @Test func testRoundTrip_V1SingleByteCodec() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
         let cid = try CID(version: .v1, codec: .dag_cbor, multihash: mh)
-        let rt = try CID(cid.rawData)
+        let rt = try CID(Data(cid))
 
         #expect(rt.version == .v1)
         #expect(rt.codec == .dag_cbor)
@@ -752,13 +725,13 @@ struct CIDTests {
     }
 
     @Test func testRoundTrip_V1MultiByteCodec() throws {
-        let ethHash = try Data(
-            decoding: "8a8e84c797605fbe75d5b5af107d4220a2db0ad35fd66d9be3d38d87c472b26d",
+        let ethHash = try BaseEncoding.decode(
+            "8a8e84c797605fbe75d5b5af107d4220a2db0ad35fd66d9be3d38d87c472b26d".utf8,
             as: .base16
         )
-        let mh = try Multihash(raw: ethHash, hashedWith: .keccak_256)
+        let mh = try Multihash(hashing: ethHash, codec: .keccak_256)
         let cid = try CID(version: .v1, codec: .eth_block, multihash: mh)
-        let rt = try CID(cid.rawData)
+        let rt = try CID(Data(cid))
 
         #expect(rt.version == .v1)
         #expect(rt.codec == .eth_block)
@@ -779,7 +752,7 @@ struct CIDTests {
 
     /// Reserved CID versions (v2 = 0x02, v3 = 0x03) are not supported.
     @Test func testReservedVersionsThrow() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
         for reserved: UInt8 in [0x02, 0x03] {
             var bytes: [UInt8] = [reserved, 0x71]  // reserved version + dag-cbor
             bytes.append(contentsOf: mh.value)
@@ -791,7 +764,7 @@ struct CIDTests {
 
     /// A valid v1 frame (version + codec) wrapping a truncated multihash must throw.
     @Test func testTruncatedMultihashThrows() throws {
-        let mh = try Multihash(raw: "abc", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "abc", codec: .sha2_256)
         var bytes: [UInt8] = [0x01, 0x71]  // v1 + dag-cbor
         bytes.append(contentsOf: mh.value.dropLast(4))  // chop 4 digest bytes
         #expect(throws: CIDError.self) {
@@ -805,7 +778,7 @@ struct CIDTests {
     @Test func testHashable_EqualCIDsShareHashAndDeDupe() throws {
         let cidBase32 = try CID("bafybeidskjjd4zmr7oh6ku6wp72vvbxyibcli2r6if3ocdcy7jjjusvl2u")
         // Same CID re-created from its raw bytes (multibase defaults may differ, equality must not)
-        let cidFromBytes = try CID(cidBase32.rawData)
+        let cidFromBytes = try CID(Data(cidBase32))
 
         #expect(cidBase32 == cidFromBytes)
         #expect(cidBase32.hashValue == cidFromBytes.hashValue)
@@ -862,7 +835,7 @@ struct CIDTests {
     /// - MARK: Content-hashing initializers
 
     @Test func testContentInit_MatchesManualMultihash() throws {
-        let manual = try Multihash(raw: "hello world", hashedWith: .sha2_256)
+        let manual = try Multihash(hashing: "hello world", codec: .sha2_256)
         let expected = try CID(version: .v1, codec: .dag_pb, multihash: manual)
 
         let fromString = try CID(version: .v1, codec: .dag_pb, content: "hello world", hashedWith: .sha2_256)
@@ -904,7 +877,7 @@ struct CIDTests {
     }
 
     @Test func testConvertedToV0_LeavesReceiverUnchangedAndThrowsForNonDagPb() throws {
-        let mh = try Multihash(raw: "hello world", hashedWith: .sha2_256)
+        let mh = try Multihash(hashing: "hello world", codec: .sha2_256)
         let v1 = try CID(version: .v1, codec: .dag_pb, multihash: mh)
         let v0 = try v1.convertedToV0()
 
